@@ -33,7 +33,7 @@ We provide here the implementations of two stochastic Newton-type algorithms to 
 	Explanation of arguments:
 
 	+  --type: int, type of problem, 0 means classification and 1 means regression
-        +  --dataset: str, name of dataset
+	+  --dataset: str, name of dataset
  	+  --data_path: str, path to load dataset
  	+  --result_folder: str, name of folder to store the experimental results
  	+  --log_file: str, name of log file
