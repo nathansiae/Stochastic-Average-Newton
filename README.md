@@ -43,7 +43,7 @@ We provide here the implementations of two stochastic Newton-type algorithms to 
  	+  --loss: str, support "Logistic" for classification; "L2" or "PseudoHuber" for regression. default: "L2"
  	+  --regularizer: str, support "L2" or "PseudoHuber". default: "L2"
  	+  --reg: float, regularization parameter, default-None. If you set this argument, then ill_conditional will be ignored automatically.
- 	+  --lr: float, learning rate for Rows Splitting Newton, default: 1.0
+ 	+  --lr: float, learning rate for SAN, default: 1.0
  	+  --run_xx, boolean, set True if you want to run *xx* algorithm
 
 
