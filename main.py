@@ -4,8 +4,9 @@ import logging
 import math
 import time
 import numpy as np
+from sklearn.model_selection import train_test_split
 import load_data
-from algorithms import san, sag, svrg, snm, vsn, sana, svrg2, gd, newton
+from algorithms import san, sag, svrg, snm, sana, gd, newton, san_id
 import utils
 import loss
 import regularizer
@@ -34,59 +35,58 @@ if __name__ == '__main__':
     parser.add_argument('--regularizer', default="L2", help="regularizer type")
     parser.add_argument('--reg', action='store', type=float, dest='reg', default=None)
     parser.add_argument("--lr", action='store', type=float, dest='lr', default=1.0)
-    parser.add_argument('--run_san', default=False, type=lambda x: (str(x).lower() in ['true', '1', 'yes']))
-    parser.add_argument('--run_sana', default=False, type=lambda x: (str(x).lower() in ['true', '1', 'yes']))
-    parser.add_argument('--run_sag', default=False, type=lambda x: (str(x).lower() in ['true', '1', 'yes']))
-    parser.add_argument('--run_svrg', default=False, type=lambda x: (str(x).lower() in ['true', '1', 'yes']))
-    parser.add_argument('--run_svrg2', default=False, type=lambda x: (str(x).lower() in ['true', '1', 'yes']))
-    parser.add_argument('--run_snm', default=False, type=lambda x: (str(x).lower() in ['true', '1', 'yes']))
-    parser.add_argument('--run_vsn', default=False, type=lambda x: (str(x).lower() in ['true', '1', 'yes']))
-    parser.add_argument('--run_gd', default=True, type=lambda x: (str(x).lower() in ['true', '1', 'yes']))
-    parser.add_argument('--run_newton', default=True, type=lambda x: (str(x).lower() in ['true', '1', 'yes']))
+    parser.add_argument("--tol", action='store', type=float, dest='tol', default=None)
+    parser.add_argument('--run_san', default=False,
+                        type=lambda x: (str(x).lower() in ['true', '1', 'yes']))
+    parser.add_argument('--run_sana', default=False,
+                        type=lambda x: (str(x).lower() in ['true', '1', 'yes']))
+    parser.add_argument('--run_sag', default=False,
+                        type=lambda x: (str(x).lower() in ['true', '1', 'yes']))
+    parser.add_argument('--run_svrg', default=False,
+                        type=lambda x: (str(x).lower() in ['true', '1', 'yes']))
+    parser.add_argument('--run_snm', default=False,
+                        type=lambda x: (str(x).lower() in ['true', '1', 'yes']))
+    parser.add_argument('--run_san_id', default=False,
+                        type=lambda x: (str(x).lower() in ['true', '1', 'yes']))
+    parser.add_argument('--run_gd', default=False,
+                        type=lambda x: (str(x).lower() in ['true', '1', 'yes']))
+    parser.add_argument('--run_newton', default=False,
+                        type=lambda x: (str(x).lower() in ['true', '1', 'yes']))
     opt = parser.parse_args()
-
-    np.random.seed(0)  # random seed to reproduce the experiments
 
     data_set = opt.data_set
     folder_path = os.path.join(opt.folder, data_set)
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
 
-    logging.basicConfig(filename=os.path.join(folder_path, opt.log_file), level=logging.INFO, format='%(message)s')
+    logging.basicConfig(filename=os.path.join(folder_path, opt.log_file),
+                        level=logging.INFO, format='%(message)s')
     logging.info(time.ctime(time.time()))
     logging.info(opt)
 
     is_uniform = True  # do we use uniform sampling for SAN?
 
     # load data
-    if data_set == "artificial":
-        d, n = 30, 5000
-        idx = np.arange(d)
-        # Ground truth coefficients of the model
-        x_model_truth = (-1) ** idx * np.exp(-idx / 10.)  # np.random.randn(d)  #
-        if opt.type == 0:
-            X, y = load_data.simu_logreg(x_model_truth, n, corr=0.1)
-        elif opt.type == 1:
-            X, y = load_data.simu_linreg(x_model_truth, n, corr=0.1)
-        else:
-            raise Exception("Unknown problem type!")
-        # X = (X - np.mean(X, axis=0)) / (np.std(X, axis=0) + 1e-10)
+    X, y = load_data.get_data(opt.data_path)
+    X = X.toarray()  # convert from scipy sparse matrix to dense
+    logging.info("Data Sparsity: {}".format(load_data.sparsity(X)))
+    # X, _, y, _ = train_test_split(X, y, train_size=10000, random_state=np.random.RandomState(0), stratify=y)
+
+    if opt.type == 0:
+        # X = X / np.max(np.abs(X), axis=0)  # X = (X - np.mean(X, axis=0)) / (np.std(X, axis=0) + 1e-10)
+        # label preprocessing for some dataset whose label is not {-1, 1}
+        max_v, min_v = np.max(y), np.min(y)
+        idx_min = (y == min_v)
+        idx_max = (y == max_v)
+        y[idx_min] = -1
+        y[idx_max] = 1
+    elif opt.type == 1:
+        # X = (X - np.mean(X, axis=0)) / (np.std(X, axis=0) + 1e-10)  # scale features to mean=0, var=1
+        X = X / np.max(np.abs(X), axis=0)  # scale features to [-1, 1]
     else:
-        X, y = load_data.get_data(opt.data_path)
-        X = X.toarray()  # convert from scipy sparse matrix to dense
-        # adding a column filling with all ones.(bias term)
-        X = np.c_[X, np.ones(X.shape[0])]
-        if opt.type == 0:
-            # X = (X - np.mean(X, axis=0)) / (np.std(X, axis=0) + 1e-10)
-            # label preprocessing for some dataset whose label is not {-1, 1}
-            max_v, min_v = np.max(y), np.min(y)
-            y[y == max_v] = 1
-            y[y == min_v] = -1
-        elif opt.type == 1:
-            # X = (X - np.mean(X, axis=0)) / (np.std(X, axis=0) + 1e-10)  # scale features to mean=0, var=1
-            X = X / np.max(np.abs(X), axis=0)  # scale features to [-1, 1]
-        else:
-            raise Exception("Unknown problem type!")
+        raise Exception("Unknown problem type!")
+    # adding a column filling with all ones.(bias term)
+    X = np.c_[X, np.ones(X.shape[0])]
 
     n, d = X.shape
     logging.info("Number of data points: {:d}; Number of features: {:d}".format(n, d))
@@ -129,65 +129,50 @@ if __name__ == '__main__':
         logging.info("Probability p_0: {:}".format(p_0))
         dist = np.array([p_0] + [(1 - p_0) / n] * n)
 
-    dict_algo = {}
-
-    if opt.run_svrg2:
-        svrg2_lr = 0.001*reg
-        kwargs = {"loss": criterion, "data": X, "label": y, "lr": svrg2_lr, "reg": reg, "dist": dist, "epoch": epochs,
-                  "x_0": x_0.copy(), "regularizer": penalty}
-        grad_iter, grad_time = utils.run_algorithm(algo_name="SVRG2", algo=svrg2, algo_kwargs=kwargs, n_repeat=n_rounds)
-        dict_algo["SVRG2"] = grad_iter
-        utils.save(os.path.join(folder_path, 'svrg2_grad_iter'), grad_iter,
-                   os.path.join(folder_path, 'svrg2_grad_time'), grad_time)
-    else:
-        grad_iter, grad_time = utils.load(os.path.join(folder_path, 'svrg2_grad_iter'),
-                                          os.path.join(folder_path, 'svrg2_grad_time'))
-        if grad_iter:
-            dict_algo["SVRG2"] = grad_iter
+    dict_algo_norm, dict_algo_time = {}, {}
 
     if opt.run_san:
+        np.random.seed(0)  # random seed to reproduce the experiments
         kwargs = {"loss": criterion, "data": X, "label": y, "lr": opt.lr, "reg": reg, "dist": dist, "epoch": epochs,
-                  "x_0": x_0.copy(), "regularizer": penalty}
-        grad_iter, grad_time = utils.run_algorithm(algo_name="SAN", algo=san, algo_kwargs=kwargs, n_repeat=n_rounds)
-        dict_algo["SAN"] = grad_iter
+                  "x_0": x_0.copy(), "regularizer": penalty, "tol": opt.tol}
+        grad_iter, grad_time = utils.run_algorithm(
+            algo_name="SAN", algo=san, algo_kwargs=kwargs, n_repeat=n_rounds)
+        dict_algo_norm["SAN"] = grad_iter
+        dict_algo_time["SAN"] = grad_time
         utils.save(os.path.join(folder_path, 'san_grad_iter'), grad_iter,
                    os.path.join(folder_path, 'san_grad_time'), grad_time)
     else:
         grad_iter, grad_time = utils.load(os.path.join(folder_path, 'san_grad_iter'),
                                           os.path.join(folder_path, 'san_grad_time'))
         if grad_iter:
-            dict_algo["SAN"] = grad_iter
+            dict_algo_norm["SAN"] = grad_iter
+        if grad_time:
+            dict_algo_time["SAN"] = grad_time
 
     if opt.run_sana:
+        np.random.seed(0)  # random seed to reproduce the experiments
         kwargs = {"loss": criterion, "data": X, "label": y, "reg": reg, "epoch": epochs,
-                  "x_0": x_0.copy(), "regularizer": penalty}
+                  "x_0": x_0.copy(), "regularizer": penalty, "tol": opt.tol}
         grad_iter, grad_time = utils.run_algorithm(algo_name="SANA", algo=sana,
-                                                   algo_kwargs=kwargs, n_repeat=n_rounds)
-        dict_algo["SANA"] = grad_iter
+                                                   algo_kwargs=kwargs, n_repeat=n_rounds
+                                                   )
+        dict_algo_norm["SANA"] = grad_iter
+        dict_algo_time["SANA"] = grad_time
         utils.save(os.path.join(folder_path, 'sana_grad_iter'), grad_iter,
                    os.path.join(folder_path, 'sana_grad_time'), grad_time)
     else:
         grad_iter, grad_time = utils.load(os.path.join(folder_path, 'sana_grad_iter'),
                                           os.path.join(folder_path, 'sana_grad_time'))
         if grad_iter:
-            dict_algo["SANA"] = grad_iter
-
-    if opt.run_vsn:
-        kwargs = {"loss": criterion, "data": X, "label": y, "reg": reg, "epoch": epochs, "x_0": x_0.copy()}
-        grad_iter, grad_time = utils.run_algorithm(algo_name="VSN", algo=vsn, algo_kwargs=kwargs, n_repeat=n_rounds)
-        dict_algo["VSN"] = grad_iter
-        utils.save(os.path.join(folder_path, 'vsn_grad_iter'), grad_iter,
-                   os.path.join(folder_path, 'vsn_grad_time'), grad_time)
-    else:
-        grad_iter, grad_time = utils.load(os.path.join(folder_path, 'vsn_grad_iter'),
-                                          os.path.join(folder_path, 'vsn_grad_time'))
-        if grad_iter:
-            dict_algo["VSN"] = grad_iter
+            dict_algo_norm["SANA"] = grad_iter
+        if grad_time:
+            dict_algo_time["SANA"] = grad_time
 
     if opt.run_sag:
-        if opt.loss == "L2" and opt.regularizer == "L2":
+        np.random.seed(0)  # random seed to reproduce the experiments
+        if opt.loss == "L2":
             sag_lr = 1. / utils.max_Li_ridge(X, reg)
-        elif opt.loss == "Logistic" and opt.regularizer == "L2":
+        elif opt.loss == "Logistic":
             sag_lr = 1. / utils.max_Li_logistic(X, reg)
         else:
             print("Warning!!! SAG learning rate")
@@ -196,21 +181,26 @@ if __name__ == '__main__':
         # sag_lr = 0.25 / (max_squared_sum + 4.0 * reg)  # theory lr
         logging.info("Learning rate used for SAG: {:f}".format(sag_lr))
         kwargs = {"loss": criterion, "data": X, "label": y, "lr": sag_lr, "reg": reg,
-                  "epoch": epochs, "x_0": x_0.copy(), "regularizer": penalty}
-        grad_iter, grad_time = utils.run_algorithm(algo_name="SAG", algo=sag, algo_kwargs=kwargs, n_repeat=n_rounds)
-        dict_algo["SAG"] = grad_iter
+                  "epoch": epochs, "x_0": x_0.copy(), "regularizer": penalty, "tol": opt.tol}
+        grad_iter, grad_time = utils.run_algorithm(
+            algo_name="SAG", algo=sag, algo_kwargs=kwargs, n_repeat=n_rounds)
+        dict_algo_norm["SAG"] = grad_iter
+        dict_algo_time["SAG"] = grad_time
         utils.save(os.path.join(folder_path, 'sag_grad_iter'), grad_iter,
                    os.path.join(folder_path, 'sag_grad_time'), grad_time)
     else:
         grad_iter, grad_time = utils.load(os.path.join(folder_path, 'sag_grad_iter'),
                                           os.path.join(folder_path, 'sag_grad_time'))
         if grad_iter:
-            dict_algo["SAG"] = grad_iter
+            dict_algo_norm["SAG"] = grad_iter
+        if grad_time:
+            dict_algo_time["SAG"] = grad_time
 
     if opt.run_svrg:
-        if opt.loss == "L2" and opt.regularizer == "L2":
+        np.random.seed(0)  # random seed to reproduce the experiments
+        if opt.loss == "L2":
             svrg_lr = 1. / utils.max_Li_ridge(X, reg)
-        elif opt.loss == "Logistic" and opt.regularizer == "L2":
+        elif opt.loss == "Logistic":
             svrg_lr = 1. / utils.max_Li_logistic(X, reg)
         else:
             print("Warning!!! SVRG learning rate")
@@ -220,28 +210,56 @@ if __name__ == '__main__':
         # svrg_lr = 0.4 / (max_squared_sum + 4.0 * reg)  # theory lr
         logging.info("Learning rate used for SVRG: {:f}".format(svrg_lr))
         kwargs = {"loss": criterion, "data": X, "label": y, "lr": svrg_lr, "reg": reg,
-                  "epoch": epochs, "x_0": x_0.copy(), "regularizer": penalty}
-        grad_iter, grad_time = utils.run_algorithm(algo_name="SVRG", algo=svrg, algo_kwargs=kwargs, n_repeat=n_rounds)
-        dict_algo["SVRG"] = grad_iter
+                  "epoch": epochs, "x_0": x_0.copy(), "regularizer": penalty, "tol": opt.tol}
+        grad_iter, grad_time = utils.run_algorithm(
+            algo_name="SVRG", algo=svrg, algo_kwargs=kwargs, n_repeat=n_rounds)
+        dict_algo_norm["SVRG"] = grad_iter
+        dict_algo_time["SVRG"] = grad_time
         utils.save(os.path.join(folder_path, 'svrg_grad_iter'), grad_iter,
                    os.path.join(folder_path, 'svrg_grad_time'), grad_time)
     else:
         grad_iter, grad_time = utils.load(os.path.join(folder_path, 'svrg_grad_iter'),
                                           os.path.join(folder_path, 'svrg_grad_time'))
         if grad_iter:
-            dict_algo["SVRG"] = grad_iter
+            dict_algo_norm["SVRG"] = grad_iter
+        if grad_time:
+            dict_algo_time["SVRG"] = grad_time
 
     if opt.run_snm:
-        kwargs = {"loss": criterion, "data": X, "label": y, "reg": reg, "epoch": epochs, "x_0": x_0.copy()}
-        grad_iter, grad_time = utils.run_algorithm(algo_name="SNM", algo=snm, algo_kwargs=kwargs, n_repeat=n_rounds)
-        dict_algo["SNM"] = grad_iter
+        np.random.seed(0)  # random seed to reproduce the experiments
+        kwargs = {"loss": criterion, "data": X, "label": y, "reg": reg, "epoch": epochs,
+                  "x_0": x_0.copy(), "tol": opt.tol, "path": folder_path}
+        grad_iter, grad_time = utils.run_algorithm(
+            algo_name="SNM", algo=snm, algo_kwargs=kwargs, n_repeat=n_rounds)
+        dict_algo_norm["SNM"] = grad_iter
+        dict_algo_time["SNM"] = grad_time
         utils.save(os.path.join(folder_path, 'snm_grad_iter'), grad_iter,
                    os.path.join(folder_path, 'snm_grad_time'), grad_time)
     else:
         grad_iter, grad_time = utils.load(os.path.join(folder_path, 'snm_grad_iter'),
                                           os.path.join(folder_path, 'snm_grad_time'))
         if grad_iter:
-            dict_algo["SNM"] = grad_iter
+            dict_algo_norm["SNM"] = grad_iter
+        if grad_time:
+            dict_algo_time["SNM"] = grad_time
+
+    if opt.run_san_id:
+        np.random.seed(0)  # random seed to reproduce the experiments
+        kwargs = {"loss": criterion, "data": X, "label": y, "lr": opt.lr, "reg": reg, "dist": dist, "epoch": epochs,
+                  "x_0": x_0.copy(), "regularizer": penalty, "tol": opt.tol}
+        grad_iter, grad_time = utils.run_algorithm(
+            algo_name="SAN-id", algo=san_id, algo_kwargs=kwargs, n_repeat=n_rounds)
+        dict_algo_norm["SAN-id"] = grad_iter
+        dict_algo_time["SAN-id"] = grad_time
+        utils.save(os.path.join(folder_path, 'san_id_grad_iter'), grad_iter,
+                   os.path.join(folder_path, 'san_id_grad_time'), grad_time)
+    else:
+        grad_iter, grad_time = utils.load(os.path.join(folder_path, 'san_id_grad_iter'),
+                                          os.path.join(folder_path, 'san_id_grad_time'))
+        if grad_iter:
+            dict_algo_norm["SAN-id"] = grad_iter
+        if grad_time:
+            dict_algo_time["SAN-id"] = grad_time
 
     if opt.run_gd:
         # 1/L, L is the smoothness constant
@@ -254,30 +272,41 @@ if __name__ == '__main__':
             gd_lr = 0.01
         logging.info("Learning rate used for Gradient descent: {:f}".format(gd_lr))
         kwargs = {"loss": criterion, "data": X, "label": y, "lr": gd_lr, "reg": reg,
-                  "epoch": epochs, "x_0": x_0.copy(), "regularizer": penalty}
-        grad_iter, grad_time = utils.run_algorithm(algo_name="GD", algo=gd, algo_kwargs=kwargs, n_repeat=1)
-        dict_algo["GD"] = grad_iter
+                  "epoch": epochs, "x_0": x_0.copy(), "regularizer": penalty, "tol": opt.tol}
+        grad_iter, grad_time = utils.run_algorithm(
+            algo_name="GD", algo=gd, algo_kwargs=kwargs, n_repeat=1)
+        dict_algo_norm["GD"] = grad_iter
+        dict_algo_time["GD"] = grad_time
         utils.save(os.path.join(folder_path, 'gd_grad_iter'), grad_iter,
                    os.path.join(folder_path, 'gd_grad_time'), grad_time)
     else:
         grad_iter, grad_time = utils.load(os.path.join(folder_path, 'gd_grad_iter'),
                                           os.path.join(folder_path, 'gd_grad_time'))
         if grad_iter:
-            dict_algo["GD"] = grad_iter
+            dict_algo_norm["GD"] = grad_iter
+        if grad_time:
+            dict_algo_time["GD"] = grad_time
 
     if opt.run_newton:
         newton_lr = 1.0
         logging.info("Learning rate used for Newton method: {:f}".format(newton_lr))
         kwargs = {"loss": criterion, "data": X, "label": y, "lr": newton_lr, "reg": reg,
-                  "epoch": epochs, "x_0": x_0.copy(), "regularizer": penalty}
-        grad_iter, grad_time = utils.run_algorithm(algo_name="Newton", algo=newton, algo_kwargs=kwargs, n_repeat=1)
-        dict_algo["Newton"] = grad_iter
+                  "epoch": epochs, "x_0": x_0.copy(), "regularizer": penalty, "tol": opt.tol}
+        grad_iter, grad_time = utils.run_algorithm(
+            algo_name="Newton", algo=newton, algo_kwargs=kwargs, n_repeat=1)
+        dict_algo_norm["Newton"] = grad_iter
+        dict_algo_time["Newton"] = grad_time
         utils.save(os.path.join(folder_path, 'newton_grad_iter'), grad_iter,
                    os.path.join(folder_path, 'newton_grad_time'), grad_time)
     else:
         grad_iter, grad_time = utils.load(os.path.join(folder_path, 'newton_grad_iter'),
                                           os.path.join(folder_path, 'newton_grad_time'))
         if grad_iter:
-            dict_algo["Newton"] = grad_iter
+            dict_algo_norm["Newton"] = grad_iter
+        if grad_time:
+            dict_algo_time["Newton"] = grad_time
 
-    utils.plot_grad_iter(result_dict=dict_algo, title=data_set, save_path=folder_path)
+    # plot two figures: grad vs epoch and grad vs time
+    utils.plot_grad_iter(result_dict=dict_algo_norm, title=data_set, save_path=folder_path)
+    utils.plot_grad_time(grad_dict=dict_algo_norm, time_dict=dict_algo_time,
+                         title=data_set, save_path=folder_path)

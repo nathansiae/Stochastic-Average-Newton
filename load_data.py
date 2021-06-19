@@ -5,14 +5,21 @@ from sklearn.datasets import load_svmlight_file
 
 
 def get_data(data_path):
-    # This function is taken from the code of Rui YUAN
-    """Once datasets are downloaded, load datasets."""
+    """Once datasets are downloaded, load datasets in LibSVM format."""
     data = load_svmlight_file(data_path)
     return data[0], data[1]
 
+
+def sparsity(data):
+    # calculate data sparsity, i.e., number of zero entries / total entries in data matrix.
+    # data, (num_samples, num_features)
+    n, d = data.shape
+    total_entries = n * d
+    zeros_entries = np.sum(data == 0)
+    return zeros_entries / total_entries
+
 # ===============================
-# These two functions to generate artificial data
-# are taken from the course M2-Optimization for Data Science
+# These two functions to generate artificial data. Not used.
 # =================================
 
 
