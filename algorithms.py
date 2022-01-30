@@ -28,7 +28,9 @@ def san(loss, regularizer, data, label, lr, reg, epoch, x_0, tol=None, verbose=1
     x = x_0.copy()  # model
     # initial gradient
     g = np.mean(loss.prime(label, data @ x).reshape(-1, 1) * data, axis=0) + reg * regularizer.prime(x)
-    norm_records, time_records = [np.sqrt(g @ g)], [0.0]
+    # initial loss
+    fval = np.mean(loss.val(label, data @ x)) + reg * regularizer.val(x)
+    norm_records, time_records, fval_records = [np.sqrt(g @ g)], [0.0], [fval]
 
     cnt = 0  # track the effective data passes
     epoch_running_time, total_running_time = 0.0, 0.0
@@ -57,7 +59,9 @@ def san(loss, regularizer, data, label, lr, reg, epoch, x_0, tol=None, verbose=1
             cnt += 1
             g = np.mean(loss.prime(label, data @ x).reshape(-1, 1) * data, axis=0) + \
                 reg * regularizer.prime(x)
+            fval = np.mean(loss.val(label, data @ x)) + reg * regularizer.val(x)
             norm_records.append(np.sqrt(g @ g))
+            fval_records.append(fval)
             total_running_time += epoch_running_time
             time_records.append(total_running_time)
             if verbose:
@@ -68,8 +72,8 @@ def san(loss, regularizer, data, label, lr, reg, epoch, x_0, tol=None, verbose=1
             epoch_running_time = 0.0
             # print(str(cnt)+"-th Data Pass: ", norm_records[-1])
             if tol is not None and norm_records[-1] <= tol:
-                return x, norm_records, time_records
-    return x, norm_records, time_records
+                return x, norm_records, time_records, fval_records
+    return x, norm_records, time_records, fval_records
 
 
 def sana(loss, regularizer, data, label, reg, epoch, x_0, tol=None, verbose=1):
@@ -81,8 +85,8 @@ def sana(loss, regularizer, data, label, reg, epoch, x_0, tol=None, verbose=1):
     x = x_0.copy()
     # g = np.mean((-label / (1 + np.exp(label * (data @ W[:, 0])))).reshape(-1, 1) * data, axis=0) + reg * W[:, 0]
     g = np.mean(loss.prime(label, data @ x).reshape(-1, 1) * data, axis=0) + reg * regularizer.prime(x)
-
-    norm_records = [np.sqrt(g @ g)]
+    fval = np.mean(loss.val(label, data @ x)) + reg * regularizer.val(x)
+    norm_records, fval_records = [np.sqrt(g @ g)], [fval]
     cnt = 0
     time_records, epoch_running_time, total_running_time = [0.0], 0.0, 0.0
     iis = np.random.randint(0, n, n * epoch)  # uniform sampling
@@ -110,7 +114,9 @@ def sana(loss, regularizer, data, label, reg, epoch, x_0, tol=None, verbose=1):
             cnt += 1
             g = np.mean(loss.prime(label, data @ x).reshape(-1, 1) * data, axis=0) + \
                 reg * regularizer.prime(x)
+            fval = np.mean(loss.val(label, data @ x)) + reg * regularizer.val(x)
             norm_records.append(np.sqrt(g @ g))
+            fval_records.append(fval)
             total_running_time += epoch_running_time
             time_records.append(total_running_time)
             if verbose:
@@ -121,8 +127,8 @@ def sana(loss, regularizer, data, label, reg, epoch, x_0, tol=None, verbose=1):
             epoch_running_time = 0.0
             # print(str(cnt)+"-th Data Pass: ", norm_records[-1])
             if tol is not None and norm_records[-1] <= tol:
-                return x, norm_records, time_records
-    return x, norm_records, time_records
+                return x, norm_records, time_records, fval_records
+    return x, norm_records, time_records, fval_records
 
 
 def sag(loss, regularizer, data, label, lr, reg, epoch, x_0, tol=None, verbose=1):
@@ -134,6 +140,8 @@ def sag(loss, regularizer, data, label, lr, reg, epoch, x_0, tol=None, verbose=1
     # init grad
     g = np.mean(loss.prime(label, data @ x).reshape(-1, 1) * data, axis=0) + reg * regularizer.prime(x)
     norm_records = [np.sqrt(g @ g)]
+    fval = np.mean(loss.val(label, data @ x)) + reg * regularizer.val(x)
+    fval_records = [fval]
     # Old gradients
     gradient_memory = np.zeros((n, d))
     y = np.zeros(d)
@@ -158,6 +166,8 @@ def sag(loss, regularizer, data, label, lr, reg, epoch, x_0, tol=None, verbose=1
             cnt += 1
             g = np.mean(loss.prime(label, data @ x).reshape(-1, 1) * data, axis=0) + reg * regularizer.prime(x)
             norm_records.append(np.sqrt(g @ g))
+            fval = np.mean(loss.val(label, data @ x)) + reg * regularizer.val(x)
+            fval_records.append(fval)
             total_running_time += epoch_running_time
             time_records.append(total_running_time)
             if verbose == 1:
@@ -167,9 +177,9 @@ def sag(loss, regularizer, data, label, lr, reg, epoch, x_0, tol=None, verbose=1
                                                                                                   norm_records[-1]))
             epoch_running_time = 0.0
             if tol is not None and norm_records[-1] <= tol:
-                return x, norm_records, time_records
+                return x, norm_records, time_records, fval_records
 
-    return x, norm_records, time_records
+    return x, norm_records, time_records, fval_records
 
 
 def svrg(loss, regularizer, data, label, lr, reg, epoch, x_0, tol=None, verbose=1):
@@ -190,6 +200,8 @@ def svrg(loss, regularizer, data, label, lr, reg, epoch, x_0, tol=None, verbose=
     # init grad
     g = np.mean(loss.prime(label, data @ x).reshape(-1, 1) * data, axis=0) + reg * regularizer.prime(x)
     norm_records, time_records, total_running_time = [np.sqrt(g @ g)], [0.0], 0.0
+    fval = np.mean(loss.val(label, data @ x)) + reg * regularizer.val(x)
+    fval_records = [fval]
 
     effective_pass = 0
     for idx in range(max_effective_pass):
@@ -203,6 +215,8 @@ def svrg(loss, regularizer, data, label, lr, reg, epoch, x_0, tol=None, verbose=
         effective_pass += 1
         g = np.mean(loss.prime(label, data @ x).reshape(-1, 1) * data, axis=0) + reg * regularizer.prime(x)
         norm_records.append(np.sqrt(g @ g))
+        fval = np.mean(loss.val(label, data @ x)) + reg * regularizer.val(x)
+        fval_records.append(fval)
         total_running_time += epoch_running_time
         time_records.append(total_running_time)
         if verbose == 1:
@@ -211,7 +225,7 @@ def svrg(loss, regularizer, data, label, lr, reg, epoch, x_0, tol=None, verbose=
                                                                                               epoch_running_time,
                                                                                               norm_records[-1]))
         if tol is not None and norm_records[-1] <= tol:
-            return x, norm_records, time_records
+            return x, norm_records, time_records, fval_records
 
         iis = np.random.randint(low=0, high=n, size=n)
         epoch_running_time = 0.0
@@ -228,6 +242,8 @@ def svrg(loss, regularizer, data, label, lr, reg, epoch, x_0, tol=None, verbose=
         effective_pass += 1
         g = np.mean(loss.prime(label, data @ x).reshape(-1, 1) * data, axis=0) + reg * regularizer.prime(x)
         norm_records.append(np.sqrt(g @ g))
+        fval = np.mean(loss.val(label, data @ x)) + reg * regularizer.val(x)
+        fval_records.append(fval)
         total_running_time += epoch_running_time
         time_records.append(total_running_time)
         if verbose == 1:
@@ -236,12 +252,12 @@ def svrg(loss, regularizer, data, label, lr, reg, epoch, x_0, tol=None, verbose=
                                                                                               epoch_running_time,
                                                                                               norm_records[-1]))
         if tol is not None and norm_records[-1] <= tol:
-            return x, norm_records, time_records
+            return x, norm_records, time_records, fval_records
 
-    return x, norm_records, time_records
+    return x, norm_records, time_records, fval_records
 
 
-def snm(loss, data, label, reg, epoch, x_0, tol=None, verbose=1, path=None):
+def snm(loss, regularizer, data, label, lr, reg, epoch, x_0, tol=None, verbose=1, path=None):
     """
     This part implements the method introduced in the paper
     'Stochastic Newton and Cubic Newton Methods with Simple Local Linear-Quadratic Rates, Kovalev et al.',
@@ -254,7 +270,8 @@ def snm(loss, data, label, reg, epoch, x_0, tol=None, verbose=1, path=None):
     x = x_0.copy()
     # init grad
     g = np.mean(loss.prime(label, data @ x).reshape(-1, 1) * data, axis=0) + reg * x
-    norm_records = [np.sqrt(g @ g)]
+    fval = np.mean(loss.val(label, data @ x)) + reg * (np.linalg.norm(x, ord=2)**2 / 2.)
+    norm_records, fval_records = [np.sqrt(g @ g)], [fval]
 
     memory_gamma = data @ x
     memory_alpha, memory_beta = loss.prime(label, memory_gamma), loss.dprime(label, memory_gamma)
@@ -298,6 +315,8 @@ def snm(loss, data, label, reg, epoch, x_0, tol=None, verbose=1, path=None):
             cnt += 1
             g = np.mean(loss.prime(label, data @ x).reshape(-1, 1) * data, axis=0) + reg * x
             norm_records.append(np.sqrt(g @ g))
+            fval = np.mean(loss.val(label, data @ x)) + reg * (np.linalg.norm(x, ord=2) ** 2 / 2.)
+            fval_records.append(fval)
             total_running_time += epoch_running_time
             time_records.append(total_running_time)
             if verbose == 1:
@@ -307,9 +326,9 @@ def snm(loss, data, label, reg, epoch, x_0, tol=None, verbose=1, path=None):
                                                                                                   norm_records[-1]))
             epoch_running_time = 0.0
             if tol is not None and norm_records[-1] <= tol:
-                return x, norm_records, time_records
+                return x, norm_records, time_records, fval_records
 
-    return x, norm_records, time_records
+    return x, norm_records, time_records, fval_records
 
 
 def san_id(loss, regularizer, data, label, lr, reg, epoch, x_0, tol=None, verbose=1, dist=None):
@@ -322,8 +341,9 @@ def san_id(loss, regularizer, data, label, lr, reg, epoch, x_0, tol=None, verbos
     alphas = np.zeros((n, d))  # auxiliary variables, it represents one alpha per row
     # W = np.zeros((n + 1, d))  # initialization
     g = np.mean(loss.prime(label, data @ x).reshape(-1, 1) * data, axis=0) + reg * x
+    fval = np.mean(loss.val(label, data @ x)) + reg * (np.linalg.norm(x, ord=2) ** 2 / 2.)
     data_norm = np.sum(data ** 2, axis=1)
-    norm_records, time_records = [np.sqrt(g @ g)], [0.0]
+    norm_records, time_records, fval_records = [np.sqrt(g @ g)], [0.0], [fval]
 
     cnt = 0  # track the effective data passes
     epoch_running_time, total_running_time = 0.0, 0.0
@@ -345,7 +365,8 @@ def san_id(loss, regularizer, data, label, lr, reg, epoch, x_0, tol=None, verbos
                   (diff @ data[i] / (1 + reg ** 2)) * (cte_i / (1 + cte_i * norm_i_square)) * data[i]
             # update
             alphas[i, :] -= lr * vec  # update i-th alpha
-            coef = dprime * (diff @ data[i]) / (1 + reg ** 2) - (dprime * norm_i_square * (diff @ data[i]) * cte_i) / ((1 + cte_i * norm_i_square) * (1 + reg ** 2))
+            coef = dprime * (diff @ data[i]) / (1 + reg ** 2) - (dprime * norm_i_square * (diff @ data[i]) * cte_i) / (
+                (1 + cte_i * norm_i_square) * (1 + reg ** 2))
             update_x = reg * vec + coef * data[i]
             x += lr * update_x  # update x
 
@@ -356,6 +377,8 @@ def san_id(loss, regularizer, data, label, lr, reg, epoch, x_0, tol=None, verbos
             cnt += 1
             g = np.mean(loss.prime(label, data @ x).reshape(-1, 1) * data, axis=0) + reg * x
             norm_records.append(np.sqrt(g @ g))
+            fval = np.mean(loss.val(label, data @ x)) + reg * (np.linalg.norm(x, ord=2) ** 2 / 2.)
+            fval_records.append(fval)
             total_running_time += epoch_running_time
             time_records.append(total_running_time)
             if verbose:
@@ -366,8 +389,103 @@ def san_id(loss, regularizer, data, label, lr, reg, epoch, x_0, tol=None, verbos
             epoch_running_time = 0.0
             # print(str(cnt)+"-th Data Pass: ", norm_records[-1])
             if tol is not None and norm_records[-1] <= tol:
-                return x, norm_records, time_records
-    return x, norm_records, time_records
+                return x, norm_records, time_records, fval_records
+    return x, norm_records, time_records, fval_records
+
+def iqn(loss, regularizer, data, label, lr, reg, epoch, x_0, tol=None, verbose=1):
+    """
+    Incremental Quasi Newton method for generalized linear models
+    :param loss: loss function object, methods: val, prime, dprime
+    :param regularizer: regularizer object, methods: val, prime, dprime
+    :param data: numpy array, shape (n_samples, n_features)
+    :param label: numpy array, shape (n_samples,)
+    :param lr: float, learning rate
+    :param reg: float, non-negative
+    :param epoch: int, number of data pass
+    :param x_0: numpy array of shape (d,), initial point
+    :param tol: float, the algo will be stopped if the norm of gradient is less than this threshold
+    :param verbose: 0 or 1; 0 means silence, no events be logged;
+    :return: trained model params, a list of gradients' norm
+    """
+    # Denote n = n_samples, d = n_features, we have model coefficients x \in R^d
+    # We'll store n auxiliary variables {z_i} \in R^d, copies of x
+    # We'll store n reals {phi_i}, allowing to easily store the gradients
+    # We'll store n matrices {B_i} of size (d,d), BFGS estimates of the Hessian
+    # These variables will be stored in tables: z (n,d), phi (n,), B (n,d,d)
+
+    n, d = data.shape
+    x = x_0.copy()  # (d,) model
+
+    # We shuffle once the data : it allows to fairly compare the algorithms by doing repetitions
+    p = np.random.permutation(n)
+    data = data[p, :]
+    label = label[p]
+    # initial tables
+    z = np.ones((n, 1)) @ x.reshape((1, d))  # (n,d) table containing the z_i as lines
+    phi = loss.prime(label, data @ x)  # (n,) table containing what is needed for gradients
+    # (n,d,d) table initialized with a bunch of identity matrices
+    B = np.zeros((n, d, d)) + np.identity(d)
+    # initial gradient and auxiliary variables
+    g = np.sum(phi.reshape(n, 1) * data, axis=0) + n * reg * regularizer.prime(
+        x)  # IQN works with the sum of functions, not the average. Let's be careful.
+    u = n * x
+    C = np.identity(d) / n  # inverse of sum_i B_i
+    H = np.zeros((d, d))
+    s = np.zeros(d)
+    y = np.zeros(d)
+    D = np.zeros((d, d))
+
+    fval = np.mean(loss.val(label, data @ x)) + reg * regularizer.val(x)
+    norm_records, time_records, fval_records = [np.sqrt(g @ g)/n], [0.0], [fval]
+    epoch_running_time = 0.0
+    total_running_time = 0.0
+    start_time = 0.0
+
+    # I need this function bc outer products of 1D vectors are annoying
+    def outer_product(x): return x.reshape(-1, 1) @ x.reshape(1, -1)
+
+    for cnt in np.arange(epoch):  # IQN visits the data cyclically
+        start_time = time.time()
+        for i in np.arange(n):
+            # Heavy computations. Some similar quantities are computed multiple times, like B_i@s.
+            # Maybe we can do better by introducing temporary variables storing once and for all those quatities.
+            x = C @ (u - g)
+            s = x - z[i, :]
+            y = reg * (regularizer.prime(x) - regularizer.prime(z[i, :])) \
+                + (loss.prime(label[i], data[i, :] @ x) - phi[i]) * data[i, :]
+            Bis = B[i, :, :] @ s # need it 6 times
+            H = B[i, :, :] + (outer_product(y) / (y.T @ s)) \
+                - (outer_product(Bis) / (s.T @ Bis))
+            u = u + H @ x - B[i, :, :] @ z[i, :]
+            g = g + y
+            Cy = C @ y # need it 2 times
+            D = C - (outer_product(Cy) / ((y.T @ s) + (y.T @ Cy)))
+            DBis = D @ Bis # need it 2 times
+            C = D + (outer_product(DBis) / ((s.T @ Bis) - (
+                Bis.T @ DBis)))  # Here we use the fact that B_i is symmetric
+            # Updating the tables
+            z[i, :] = x
+            phi[i] = loss.prime(label[i], data[i, :] @ x)
+            B[i, :, :] = H
+
+            # records the norm square of gradient after each data pass
+        epoch_running_time += time.time() - start_time
+        grad_epoch = np.mean(loss.prime(label, data @ x).reshape(-1, 1) * data, axis=0) + \
+            reg * regularizer.prime(x)
+        norm_records.append(np.sqrt(grad_epoch @ grad_epoch)/n) # divide by n because of average/sum thingy
+        fval = np.mean(loss.val(label, data @ x)) + reg * regularizer.val(x)
+        fval_records.append(fval)
+        total_running_time += epoch_running_time
+        time_records.append(total_running_time)
+        if verbose:
+            logging.info(
+                "| end of effective pass {:d} | time: {:f}s | norm of gradient {:f} |".format(cnt + 1,
+                                                                                              epoch_running_time,
+                                                                                              norm_records[-1]))
+        epoch_running_time = 0.0  # prevents pollution with the computation of the full gradient
+        if tol is not None and norm_records[-1] <= tol:
+            return x, norm_records, time_records, fval_records
+    return x, norm_records, time_records, fval_records
 
 
 #########################
@@ -383,7 +501,8 @@ def gd(loss, regularizer, data, label, lr, reg, epoch, x_0, tol=None, verbose=1)
     x = x_0.copy()
     # init grad
     g = np.mean(loss.prime(label, data @ x).reshape(-1, 1) * data, axis=0) + reg * regularizer.prime(x)
-    norm_records = [np.sqrt(g @ g)]
+    fval = np.mean(loss.val(label, data @ x)) + reg * regularizer.val(x)
+    norm_records, fval_records = [np.sqrt(g @ g)], [fval]
 
     cnt = 0
     time_records, epoch_running_time, total_running_time = [0.0], 0.0, 0.0
@@ -399,6 +518,8 @@ def gd(loss, regularizer, data, label, lr, reg, epoch, x_0, tol=None, verbose=1)
         # evaluate
         g = np.mean(loss.prime(label, data @ x).reshape(-1, 1) * data, axis=0) + reg * regularizer.prime(x)
         norm_records.append(np.sqrt(g @ g))
+        fval = np.mean(loss.val(label, data @ x)) + reg * regularizer.val(x)
+        fval_records.append(fval)
         total_running_time += epoch_running_time
         time_records.append(total_running_time)
         if verbose == 1:
@@ -406,9 +527,9 @@ def gd(loss, regularizer, data, label, lr, reg, epoch, x_0, tol=None, verbose=1)
                 "| end of effective pass {:d} | time: {:f}s | norm of gradient {:f} |".format(cnt, epoch_running_time,
                                                                                               norm_records[-1]))
         if tol is not None and norm_records[-1] <= tol:
-            return x, norm_records, time_records
+            return x, norm_records, time_records, fval_records
 
-    return x, norm_records, time_records
+    return x, norm_records, time_records, fval_records
 
 
 def newton(loss, regularizer, data, label, lr, reg, epoch, x_0, tol=None, verbose=1):
@@ -419,7 +540,8 @@ def newton(loss, regularizer, data, label, lr, reg, epoch, x_0, tol=None, verbos
     x = x_0.copy()
     # init grad
     g = np.mean(loss.prime(label, data @ x).reshape(-1, 1) * data, axis=0) + reg * regularizer.prime(x)
-    norm_records = [np.sqrt(g @ g)]
+    fval = np.mean(loss.val(label, data @ x)) + reg * regularizer.val(x)
+    norm_records, fval_records = [np.sqrt(g @ g)], [fval]
 
     time_records, epoch_running_time, total_running_time = [0.0], 0.0, 0.0
     for cnt in range(1, epoch + 1):
@@ -437,6 +559,8 @@ def newton(loss, regularizer, data, label, lr, reg, epoch, x_0, tol=None, verbos
         # evaluate
         g = np.mean(loss.prime(label, data @ x).reshape(-1, 1) * data, axis=0) + reg * regularizer.prime(x)
         norm_records.append(np.sqrt(g @ g))
+        fval = np.mean(loss.val(label, data @ x)) + reg * regularizer.val(x)
+        fval_records.append(fval)
         total_running_time += epoch_running_time
         time_records.append(total_running_time)
         if verbose == 1:
@@ -444,6 +568,6 @@ def newton(loss, regularizer, data, label, lr, reg, epoch, x_0, tol=None, verbos
                 "| end of effective pass {:d} | time: {:f}s | norm of gradient {:f} |".format(cnt, epoch_running_time,
                                                                                               norm_records[-1]))
         if tol is not None and norm_records[-1] <= tol:
-            return x, norm_records, time_records
+            return x, norm_records, time_records, fval_records
 
-    return x, norm_records, time_records
+    return x, norm_records, time_records, fval_records
