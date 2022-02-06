@@ -11,6 +11,6 @@ DATASETS_PATHS=("./datasets/fourclass.txt")
 NUM_DATASETS=${#DATASETS_NAMES[@]}
 for (( i=0; i<$NUM_DATASETS; i++ )) do
   echo "START Running ${DATASETS_NAMES[i]}"
-  python main.py --dataset ${DATASETS_NAMES[i]} --data_path ${DATASETS_PATHS[i]}
+  python src/main.py --dataset ${DATASETS_NAMES[i]} --data_path ${DATASETS_PATHS[i]}
   echo "Finished ${DATASETS_NAMES[i]}"
 done
