@@ -123,6 +123,9 @@ if __name__ == '__main__':
         algorithms2run["SAG"] = solvers.SAG(loss=criterion, regularizer=penalty)
     if "SVRG" in config.algorithms2run:
         algorithms2run["SVRG"] = solvers.SVRG(loss=criterion, regularizer=penalty)
+    if "ADAM" in config.algorithms2run:
+        algorithms2run["ADAM"] = solvers.Adam(loss=criterion, regularizer=penalty,
+                                              beta1=0.9, beta2=0.999, eps=1e-8)
     if "GD" in config.algorithms2run:
         algorithms2run["GD"] = solvers.GradientDescent(loss=criterion, regularizer=penalty)
     if "Newton" in config.algorithms2run:
@@ -143,6 +146,8 @@ if __name__ == '__main__':
                 print("Warning!!!")
                 lr = 0.01
             kwargs["lr"] = lr
+        if "adam" in algo_name.lower():
+            kwargs["lr"] = 0.001
         if "gd" in algo_name.lower():
             # 1/L, L is the smoothness constant
             if config.loss == "L2" and config.regularizer == "L2":

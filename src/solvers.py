@@ -6,6 +6,7 @@ import os
 import regularizer as my_reg
 
 
+# an abstract class
 class Solver(metaclass=ABCMeta):
 
     def __init__(self, loss, regularizer):
@@ -59,6 +60,9 @@ class Solver(metaclass=ABCMeta):
         return
 
 
+# ==================================
+# Our major algorithm presented in the paper: https://arxiv.org/abs/2106.10520
+# ==================================
 class SAN(Solver):
 
     def __init__(self, loss, regularizer, customized_dist):
@@ -92,8 +96,13 @@ class SAN(Solver):
         return
 
 
+# ==================================
+# Baseline methods
+# ==================================
 class SAG(Solver):
-
+    """
+    Stochastic average gradient algorithm.
+    """
     def __init__(self, loss, regularizer):
         super(SAG, self).__init__(loss, regularizer)
         # Old gradients
@@ -110,7 +119,7 @@ class SAG(Solver):
         n, d = data.shape
         iis = np.random.randint(low=0, high=n, size=n)
         for i in iis:
-            # gradient of (i-1)-th loss
+            # gradient of i-th loss
             grad_i = self.loss.prime(label[i], data[i, :] @ self.x) * data[i, :] \
                      + reg * self.regularizer.prime(self.x)
             # update
@@ -169,6 +178,42 @@ class SVRG(Solver):
         return
 
 
+class Adam(Solver):
+
+    def __init__(self, loss, regularizer, beta1, beta2, eps):
+        super(Adam, self).__init__(loss, regularizer)
+        self.beta1 = beta1
+        self.beta2 = beta2
+        self.update_cnt = 0
+        self.eps = eps
+        self.m = None
+        self.v = None
+
+    def auxiliary_proc(self, data):
+        n, d = data.shape
+        self.m = np.zeros(d)
+        self.v = np.zeros(d)
+        return
+
+    def run_epoch(self, data, label, reg, lr):
+        n, d = data.shape
+        iis = np.random.randint(low=0, high=n, size=n)
+        for i in iis:
+            self.update_cnt += 1
+            grad_i = self.loss.prime(label[i], data[i, :] @ self.x) * data[i, :] \
+                     + reg * self.regularizer.prime(self.x)
+            self.m = self.beta1 * self.m + (1 - self.beta1) * grad_i
+            self.v = self.beta2 * self.v + (1 - self.beta2) * (grad_i * grad_i)
+            m_hat = self.m / (1 - self.beta1 ** self.update_cnt)
+            v_hat = self.v / (1 - self.beta2 ** self.update_cnt)
+            direction = lr * m_hat / (np.sqrt(v_hat) + self.eps)
+            self.x -= direction  # update
+        return
+
+
+#########################
+# Deterministic Algorithm
+#########################
 class GradientDescent(Solver):
     def run_epoch(self, data, label, reg, lr):
         grad = np.mean(self.loss.prime(label, data @ self.x).reshape(-1, 1) * data, axis=0) \
